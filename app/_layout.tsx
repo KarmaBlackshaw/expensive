@@ -16,9 +16,15 @@ export default function RootLayout() {
   return (
     <ExpenseProvider>
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        <Stack>
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="categories" />
+          <Stack.Screen name="add-category" />
+          <Stack.Screen name="edit-category" />
+          <Stack.Screen name="add-transaction" />
+          <Stack.Screen name="edit-transaction" />
+          <Stack.Screen name="add-planned-expense" />
+          <Stack.Screen name="edit-planned-expense" />
         </Stack>
         <StatusBar style="auto" />
       </ThemeProvider>

@@ -1,43 +1,28 @@
+import { FloatingActionButton } from '@/components/floating-action-button';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useExpenses } from '@/context/expense-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { Dimensions, ScrollView, StyleSheet, View } from 'react-native';
-import { PieChart } from 'react-native-chart-kit';
-
-const screenWidth = Dimensions.get('window').width;
+import { ScrollView, StyleSheet, View } from 'react-native';
 
 export default function DashboardScreen() {
-  const { totalPaid, totalUnpaid, totalCosts, recurringExpenses } = useExpenses();
+  const { totalPaid, totalUnpaid, totalExpenses, plannedExpenses } = useExpenses();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
 
-  const total = totalPaid + totalUnpaid;
-
-  const chartData = [
-    {
-      name: 'Paid',
-      amount: totalPaid,
-      color: '#4CAF50',
-      legendFontColor: isDark ? '#fff' : '#333',
-      legendFontSize: 14,
-    },
-    {
-      name: 'Unpaid',
-      amount: totalUnpaid,
-      color: '#F44336',
-      legendFontColor: isDark ? '#fff' : '#333',
-      legendFontSize: 14,
-    },
-  ];
+  const totalPlanned = totalPaid + totalUnpaid;
 
   const formatCurrency = (amount: number) => `₱${amount.toLocaleString()}`;
 
+  const formatDueDate = (dueDay: number) => {
+    const now = new Date();
+    const dueDate = new Date(now.getFullYear(), now.getMonth(), dueDay);
+    return dueDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  };
+
   return (
     <ThemedView style={styles.container}>
-      <ScrollView showsVerticalScrollIndicator={false}>
-        <ThemedText type="title" style={styles.header}>Dashboard</ThemedText>
-
+      <ScrollView showsVerticalScrollIndicator={false} style={styles.scrollView}>
         {/* Summary Cards */}
         <View style={styles.summaryContainer}>
           <View style={[styles.card, { backgroundColor: '#4CAF50' }]}>
@@ -52,47 +37,26 @@ export default function DashboardScreen() {
 
         <View style={[styles.card, styles.totalCard, { backgroundColor: isDark ? '#333' : '#f5f5f5' }]}>
           <ThemedText style={[styles.cardLabel, { color: isDark ? '#fff' : '#333' }]}>
-            Total Recurring
+            Total Planned
           </ThemedText>
           <ThemedText style={[styles.cardValue, { color: isDark ? '#fff' : '#333' }]}>
-            {formatCurrency(total)}
+            {formatCurrency(totalPlanned)}
           </ThemedText>
         </View>
 
         <View style={[styles.card, styles.totalCard, { backgroundColor: isDark ? '#333' : '#f5f5f5' }]}>
           <ThemedText style={[styles.cardLabel, { color: isDark ? '#fff' : '#333' }]}>
-            Total Miscellaneous Costs
+            Total Expenses
           </ThemedText>
           <ThemedText style={[styles.cardValue, { color: isDark ? '#fff' : '#333' }]}>
-            {formatCurrency(totalCosts)}
+            {formatCurrency(totalExpenses)}
           </ThemedText>
         </View>
-
-        {/* Chart */}
-        {total > 0 && (
-          <View style={styles.chartContainer}>
-            <ThemedText type="subtitle" style={styles.chartTitle}>
-              Payment Status
-            </ThemedText>
-            <PieChart
-              data={chartData}
-              width={screenWidth - 32}
-              height={200}
-              chartConfig={{
-                color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
-              }}
-              accessor="amount"
-              backgroundColor="transparent"
-              paddingLeft="15"
-              absolute
-            />
-          </View>
-        )}
 
         {/* Upcoming Payments */}
         <View style={styles.upcomingSection}>
           <ThemedText type="subtitle">Upcoming Payments</ThemedText>
-          {recurringExpenses
+          {plannedExpenses
             .filter(e => e.status === 'unpaid')
             .sort((a, b) => a.dueDay - b.dueDay)
             .slice(0, 5)
@@ -100,16 +64,21 @@ export default function DashboardScreen() {
               <View key={expense.id} style={[styles.upcomingItem, { backgroundColor: isDark ? '#333' : '#f9f9f9' }]}>
                 <View>
                   <ThemedText style={styles.expenseName}>{expense.name}</ThemedText>
-                  <ThemedText style={styles.expenseDue}>Due: Day {expense.dueDay}</ThemedText>
+                  <ThemedText style={styles.expenseDue}>Due: {formatDueDate(expense.dueDay)}</ThemedText>
                 </View>
                 <ThemedText style={styles.expenseAmount}>{formatCurrency(expense.amount)}</ThemedText>
               </View>
             ))}
-          {recurringExpenses.filter(e => e.status === 'unpaid').length === 0 && (
+          {plannedExpenses.filter(e => e.status === 'unpaid').length === 0 && (
             <ThemedText style={styles.emptyText}>All payments complete! 🎉</ThemedText>
           )}
         </View>
+
+        <View style={styles.bottomPadding} />
       </ScrollView>
+
+      {/* FAB */}
+      <FloatingActionButton />
     </ThemedView>
   );
 }
@@ -117,11 +86,11 @@ export default function DashboardScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 16,
   },
-  header: {
-    marginBottom: 20,
-    marginTop: 60,
+  scrollView: {
+    flex: 1,
+    padding: 16,
+    paddingTop: 60,
   },
   summaryContainer: {
     flexDirection: 'row',
@@ -146,13 +115,6 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
     marginTop: 4,
-  },
-  chartContainer: {
-    marginVertical: 20,
-    alignItems: 'center',
-  },
-  chartTitle: {
-    marginBottom: 10,
   },
   upcomingSection: {
     marginTop: 10,
@@ -182,5 +144,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 20,
     opacity: 0.6,
+  },
+  bottomPadding: {
+    height: 100,
   },
 });

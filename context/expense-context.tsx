@@ -1,95 +1,172 @@
-import React, { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
-import { RecurringExpense, CostRecord } from '@/types/expense';
 import * as db from '@/services/database';
+import { Category, PlannedExpense, Transaction } from '@/types/expense';
+import React, { createContext, ReactNode, useCallback, useContext, useEffect, useState } from 'react';
 
 interface ExpenseContextType {
-  recurringExpenses: RecurringExpense[];
-  costRecords: CostRecord[];
-  isLoading: boolean;
-  addRecurringExpense: (expense: Omit<RecurringExpense, 'id'>) => Promise<void>;
-  updateRecurringExpense: (id: string, updates: Partial<RecurringExpense>) => Promise<void>;
-  deleteRecurringExpense: (id: string) => Promise<void>;
-  addCostRecord: (record: Omit<CostRecord, 'id' | 'createdAt'>) => Promise<void>;
-  deleteCostRecord: (id: string) => Promise<void>;
-  toggleExpenseStatus: (id: string) => Promise<void>;
+  // Categories
+  categories: Category[];
+  addCategory: (name: string) => Promise<void>;
+  updateCategory: (id: string, name: string) => Promise<void>;
+  deleteCategory: (id: string) => Promise<void>;
+
+  // Planned Expenses
+  plannedExpenses: PlannedExpense[];
+  addPlannedExpense: (expense: Omit<PlannedExpense, 'id' | 'createdAt' | 'paidAt'>) => Promise<void>;
+  updatePlannedExpense: (id: string, updates: Partial<PlannedExpense>) => Promise<void>;
+  deletePlannedExpense: (id: string) => Promise<void>;
+  togglePlannedExpenseStatus: (id: string) => Promise<void>;
+
+  // Transactions
+  transactions: Transaction[];
+  addTransaction: (transaction: Omit<Transaction, 'id'>) => Promise<void>;
+  updateTransaction: (id: string, updates: Partial<Transaction>) => Promise<void>;
+  deleteTransaction: (id: string) => Promise<void>;
+
+  // Totals
   totalPaid: number;
   totalUnpaid: number;
-  totalCosts: number;
+  totalExpenses: number;
+
+  // State
+  isLoading: boolean;
   refresh: () => Promise<void>;
+
+  // Helpers
+  getCategoryName: (categoryId: string) => string;
+  getTransactionsByDateRange: (startDate: Date, endDate: Date) => Transaction[];
+  getTransactionsGroupedByDate: (transactions: Transaction[]) => Map<string, Transaction[]>;
 }
 
 const ExpenseContext = createContext<ExpenseContextType | undefined>(undefined);
 
 export function ExpenseProvider({ children }: { children: ReactNode }) {
-  const [recurringExpenses, setRecurringExpenses] = useState<RecurringExpense[]>([]);
-  const [costRecords, setCostRecords] = useState<CostRecord[]>([]);
-  const [totals, setTotals] = useState({ totalPaid: 0, totalUnpaid: 0, totalCosts: 0 });
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [plannedExpenses, setPlannedExpenses] = useState<PlannedExpense[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [totals, setTotals] = useState({ totalPaid: 0, totalUnpaid: 0, totalExpenses: 0 });
   const [isLoading, setIsLoading] = useState(true);
 
   const refresh = useCallback(async () => {
-    const [expenses, records, newTotals] = await Promise.all([
-      db.getRecurringExpenses(),
-      db.getCostRecords(),
+    const [cats, planned, trans, newTotals] = await Promise.all([
+      db.getCategories(),
+      db.getPlannedExpenses(),
+      db.getTransactions(),
       db.getTotals(),
     ]);
-    setRecurringExpenses(expenses);
-    setCostRecords(records);
+    setCategories(cats);
+    setPlannedExpenses(planned);
+    setTransactions(trans);
     setTotals(newTotals);
   }, []);
 
   useEffect(() => {
     const init = async () => {
       await db.initDatabase();
+      await db.checkAndResetMonthly();
       await refresh();
       setIsLoading(false);
     };
     init();
   }, [refresh]);
 
-  const addRecurringExpense = async (expense: Omit<RecurringExpense, 'id'>) => {
-    await db.addRecurringExpense(expense);
+  // Category operations
+  const addCategory = async (name: string) => {
+    await db.addCategory(name);
     await refresh();
   };
 
-  const updateRecurringExpense = async (id: string, updates: Partial<RecurringExpense>) => {
-    await db.updateRecurringExpense(id, updates);
+  const updateCategory = async (id: string, name: string) => {
+    await db.updateCategory(id, name);
     await refresh();
   };
 
-  const deleteRecurringExpense = async (id: string) => {
-    await db.deleteRecurringExpense(id);
+  const deleteCategory = async (id: string) => {
+    await db.deleteCategory(id);
     await refresh();
   };
 
-  const toggleExpenseStatus = async (id: string) => {
-    await db.toggleExpenseStatus(id);
+  // Planned expense operations
+  const addPlannedExpense = async (expense: Omit<PlannedExpense, 'id' | 'createdAt' | 'paidAt'>) => {
+    await db.addPlannedExpense(expense);
     await refresh();
   };
 
-  const addCostRecord = async (record: Omit<CostRecord, 'id' | 'createdAt'>) => {
-    await db.addCostRecord(record);
+  const updatePlannedExpense = async (id: string, updates: Partial<PlannedExpense>) => {
+    await db.updatePlannedExpense(id, updates);
     await refresh();
   };
 
-  const deleteCostRecord = async (id: string) => {
-    await db.deleteCostRecord(id);
+  const deletePlannedExpense = async (id: string) => {
+    await db.deletePlannedExpense(id);
     await refresh();
+  };
+
+  const togglePlannedExpenseStatus = async (id: string) => {
+    await db.togglePlannedExpenseStatus(id);
+    await refresh();
+  };
+
+  // Transaction operations
+  const addTransaction = async (transaction: Omit<Transaction, 'id'>) => {
+    await db.addTransaction(transaction);
+    await refresh();
+  };
+
+  const updateTransaction = async (id: string, updates: Partial<Transaction>) => {
+    await db.updateTransaction(id, updates);
+    await refresh();
+  };
+
+  const deleteTransaction = async (id: string) => {
+    await db.deleteTransaction(id);
+    await refresh();
+  };
+
+  // Helper functions
+  const getCategoryName = (categoryId: string): string => {
+    const category = categories.find(c => c.id === categoryId);
+    return category?.name ?? 'Uncategorized';
+  };
+
+  const getTransactionsByDateRange = (startDate: Date, endDate: Date): Transaction[] => {
+    return transactions.filter(t => {
+      const date = new Date(t.date);
+      return date >= startDate && date <= endDate;
+    });
+  };
+
+  const getTransactionsGroupedByDate = (trans: Transaction[]): Map<string, Transaction[]> => {
+    const grouped = new Map<string, Transaction[]>();
+    trans.forEach(t => {
+      const dateKey = t.date.split('T')[0]; // YYYY-MM-DD
+      const existing = grouped.get(dateKey) || [];
+      grouped.set(dateKey, [...existing, t]);
+    });
+    return grouped;
   };
 
   return (
     <ExpenseContext.Provider
       value={{
-        recurringExpenses,
-        costRecords,
-        isLoading,
-        addRecurringExpense,
-        updateRecurringExpense,
-        deleteRecurringExpense,
-        addCostRecord,
-        deleteCostRecord,
-        toggleExpenseStatus,
+        categories,
+        addCategory,
+        updateCategory,
+        deleteCategory,
+        plannedExpenses,
+        addPlannedExpense,
+        updatePlannedExpense,
+        deletePlannedExpense,
+        togglePlannedExpenseStatus,
+        transactions,
+        addTransaction,
+        updateTransaction,
+        deleteTransaction,
         ...totals,
+        isLoading,
         refresh,
+        getCategoryName,
+        getTransactionsByDateRange,
+        getTransactionsGroupedByDate,
       }}>
       {children}
     </ExpenseContext.Provider>
